@@ -1,9 +1,7 @@
-from experta import KnowledgeEngine, Fact, Rule, AND, OR
+from experta import KnowledgeEngine, Fact, Rule, AND
 from datetime import datetime
 
-# ------------------------------
-# Enhanced Facts for Cybersecurity Threats
-# ------------------------------
+
 class Threat(Fact): pass
 class Symptom(Fact): pass
 class Observation(Fact): pass
@@ -14,15 +12,13 @@ class NetworkBehavior(Fact): pass
 class FileActivity(Fact): pass
 
 
-# ------------------------------
-# Enhanced Cybersecurity Threat Detection Engine
-# ------------------------------
 class ThreatDetectionEngine(KnowledgeEngine):
     def __init__(self):
         super().__init__()
         self.report = {
             "best_fit": None,
             "alternatives": [],
+            "diagnosis_explanations": {},
             "explanations": [],
             "scores": {},
             "confidence": 0,
@@ -32,364 +28,238 @@ class ThreatDetectionEngine(KnowledgeEngine):
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         self.severity_thresholds = {
-            "Critical": 150,
-            "High": 100,
-            "Medium": 50,
-            "Low": 20
+            "Critical": 120,
+            "High": 80,
+            "Medium": 40,
+            "Low": 10
         }
+
 
     def explain(self, message):
         self.report['explanations'].append(message)
 
     def add_score(self, diagnosis, points):
-        if diagnosis in self.report['scores']:
-            self.report['scores'][diagnosis] += points
-        else:
-            self.report['scores'][diagnosis] = points
+        self.report['scores'][diagnosis] = self.report['scores'].get(diagnosis, 0) + points
 
     def add_indicator(self, indicator):
         if indicator not in self.report['indicators']:
             self.report['indicators'].append(indicator)
 
-    def add_mitigation(self, step):
+    def add_mitigation(self, step, explanation=None):
         if step not in self.report['mitigation_steps']:
             self.report['mitigation_steps'].append(step)
+        if explanation:
+            self.report.setdefault('mitigation_details', {})[step] = explanation
 
-    # =====================================================
-    # 1️⃣  ENHANCED MALWARE RULES
-    # =====================================================
+    def add_diagnosis_explanation(self, diagnosis, message):
+        if diagnosis not in self.report.get('diagnosis_explanations', {}):
+            self.report.setdefault('diagnosis_explanations', {})[diagnosis] = []
+        if message not in self.report['diagnosis_explanations'][diagnosis]:
+            self.report['diagnosis_explanations'][diagnosis].append(message)
+
+
     @Rule(AND(Threat(threat='Malware'), Symptom(symptom='Unusual CPU Usage')))
-    def malware_cpu(self):
-        self.add_score('Malware Infection', 40)
-        self.add_score('Cryptominer', 45)
+    def rule_malware_cpu(self):
+        self.add_score('Malware Infection', 50)
+        self.add_diagnosis_explanation('Malware Infection', "High CPU usage may indicate malware or cryptomining.")
+        self.add_score('Cryptominer', 60)
+        self.add_diagnosis_explanation('Cryptominer', "High sustained CPU usage often indicates hidden cryptomining.")
         self.add_indicator("High CPU usage detected")
-        self.explain("High CPU usage indicates hidden malware processes or cryptomining.")
-        self.add_mitigation("Run full system antivirus scan")
-        self.add_mitigation("Check Task Manager for suspicious processes")
-
-    @Rule(AND(Threat(threat='Malware'), Symptom(symptom='Unusual CPU Usage'), 
-              TimeContext(time='After Hours')))
-    def malware_cpu_afterhours(self):
-        self.add_score('Cryptominer', 30)
-        self.add_score('Advanced Persistent Threat', 25)
-        self.explain("After-hours CPU spikes suggest automated malware activity.")
-        self.add_indicator("Off-hours suspicious activity")
+        self.explain("Continuous CPU spikes suggest malware or cryptomining.")
+        self.add_mitigation("Run full antivirus scan", "Full scan isolates CPU-intensive malware.")
+        self.add_mitigation("Inspect running processes", "Identify hidden mining or malware executables.")
 
     @Rule(AND(Threat(threat='Malware'), Symptom(symptom='Unexpected Popups')))
-    def malware_popups(self):
-        self.add_score('Adware Infection', 50)
-        self.add_score('Phishing Attempt', 15)
-        self.add_score('Browser Hijacker', 40)
-        self.add_indicator("Unwanted popup advertisements")
-        self.explain("Unexpected popups indicate adware, browser hijacker, or phishing malware.")
-        self.add_mitigation("Clear browser cache and remove suspicious extensions")
-        self.add_mitigation("Run adware removal tool")
+    def rule_malware_popups(self):
+        self.add_score('Malware Infection', 40)
+        self.add_diagnosis_explanation('Malware Infection', "Unexpected popups often indicate adware or trojans.")
+        self.add_indicator("Unexpected popups observed")
+        self.add_mitigation("Run malware removal tool", "Removes popup-generating malware.")
 
-    @Rule(AND(Threat(threat='Malware'), Observation(observation='File Changes')))
-    def malware_file_change(self):
-        self.add_score('Ransomware', 70)
-        self.add_score('Malware Infection', 25)
-        self.add_score('Trojan', 30)
-        self.add_indicator("Unauthorized file modifications detected")
-        self.explain("Unauthorized file encryption or deletion strongly suggests ransomware.")
-        self.add_mitigation("IMMEDIATELY disconnect from network")
-        self.add_mitigation("Do not pay ransom - contact security team")
-        self.add_mitigation("Restore from clean backups if available")
+    @Rule(AND(Threat(threat='Malware'), Symptom(symptom='System Slowdown')))
+    def rule_malware_slowdown(self):
+        self.add_score('Malware Infection', 35)
+        self.add_diagnosis_explanation('Malware Infection', "System slowdown may be caused by background malware.")
+        self.add_indicator("System performance degraded")
+        self.add_mitigation("Check running processes", "Identify CPU or memory hogging malware.")
 
-    @Rule(AND(Threat(threat='Malware'), FileActivity(activity='Mass Encryption')))
-    def malware_encryption(self):
-        self.add_score('Ransomware', 90)
-        self.add_indicator("Mass file encryption in progress")
-        self.explain("Mass file encryption is definitive ransomware behavior.")
-        self.add_mitigation("CRITICAL: Isolate system immediately")
-        self.add_mitigation("Preserve forensic evidence")
+    @Rule(AND(Threat(threat='Malware'), Symptom(symptom='Unauthorized File Changes')))
+    def rule_malware_file_changes(self):
+        self.add_score('Malware Infection', 50)
+        self.add_diagnosis_explanation('Malware Infection', "Malware may alter or encrypt files.")
+        self.add_indicator("File modifications detected")
+        self.add_mitigation("Restore files from backup", "Ensure integrity of system data.")
 
-    @Rule(AND(SystemImpact(impact='Data Loss'), Threat(threat='Malware')))
-    def malware_data_loss(self):
-        self.add_score('Ransomware', 75)
-        self.add_score('Wiper Malware', 40)
-        self.add_indicator("Data loss or corruption detected")
-        self.explain("Data loss is a strong indicator of ransomware or destructive malware.")
-        self.add_mitigation("Check for ransom notes or messages")
+    @Rule(AND(Threat(threat='Malware'), Symptom(symptom='Antivirus Disabled')))
+    def rule_malware_av_disabled(self):
+        self.add_score('Malware Infection', 60)
+        self.add_diagnosis_explanation('Malware Infection', "Some malware disables antivirus protection to evade detection.")
+        self.add_indicator("Antivirus disabled")
+        self.add_mitigation("Re-enable antivirus and scan system", "Detect and remove malware.")
 
-    @Rule(AND(UserActivity(activity='External Device Used'), Threat(threat='Malware')))
-    def malware_usb(self):
-        self.add_score('Worm Infection', 45)
-        self.add_score('USB-based Malware', 50)
-        self.add_indicator("External device usage detected")
-        self.explain("Malware can spread through infected USB or external devices.")
-        self.add_mitigation("Scan all external devices before use")
-        self.add_mitigation("Disable autorun for removable media")
-
-    @Rule(AND(Threat(threat='Malware'), NetworkBehavior(behavior='Unusual Outbound Traffic')))
-    def malware_c2_communication(self):
-        self.add_score('Botnet Activity', 60)
-        self.add_score('Data Exfiltration', 55)
-        self.add_score('Trojan', 50)
-        self.add_indicator("Suspicious outbound network traffic")
-        self.explain("Unusual outbound traffic suggests command-and-control communication.")
-        self.add_mitigation("Block suspicious IP addresses")
-        self.add_mitigation("Analyze network logs for IOCs")
-
-    @Rule(AND(Threat(threat='Malware'), Symptom(symptom='System Slowdown'),
-              NetworkBehavior(behavior='Unusual Outbound Traffic')))
-    def malware_advanced_threat(self):
-        self.add_score('Advanced Persistent Threat', 70)
-        self.explain("Combined slowdown and network anomalies indicate sophisticated malware.")
-        self.add_indicator("Multiple correlated threat indicators")
-
-    # =====================================================
-    # 2️⃣  ENHANCED PHISHING RULES
-    # =====================================================
-    @Rule(AND(Threat(threat='Phishing'), Symptom(symptom='Suspicious Email'), 
-              Observation(observation='Link Clicked')))
-    def phishing_click(self):
-        self.add_score('Phishing Attack', 85)
-        self.add_score('Credential Harvesting', 40)
-        self.add_indicator("User clicked suspicious email link")
-        self.explain("User clicked a suspicious link – classic phishing indicator.")
-        self.add_mitigation("Change all passwords immediately")
-        self.add_mitigation("Enable 2FA on all accounts")
-        self.add_mitigation("Report email to security team")
-
+    # -------- Phishing Rules --------
     @Rule(AND(Threat(threat='Phishing'), Symptom(symptom='Suspicious Email')))
-    def phishing_email(self):
-        self.add_score('Phishing Attempt', 45)
-        self.add_score('Spear Phishing', 30)
+    def rule_phishing_email(self):
+        self.add_score('Phishing Attempt', 55)
+        self.add_diagnosis_explanation('Phishing Attempt', "Suspicious sender or fake links indicate phishing.")
         self.add_indicator("Suspicious email received")
-        self.explain("Suspicious emails suggest a phishing attempt.")
-        self.add_mitigation("Do not click links or download attachments")
-        self.add_mitigation("Verify sender through separate communication channel")
+        self.explain("Emails with urgent tone or fake links are classic phishing indicators.")
+        self.add_mitigation("Report to security team", "Enable organization-wide alerting.")
+        self.add_mitigation("Do not click links", "Verify sender identity first.")
 
-    @Rule(AND(Threat(threat='Phishing'), Symptom(symptom='Suspicious Email'),
-              Observation(observation='Attachment Opened')))
-    def phishing_attachment(self):
-        self.add_score('Malware Delivery', 75)
-        self.add_score('Phishing Attack', 40)
-        self.add_indicator("Malicious attachment opened")
-        self.explain("Opening phishing attachments often delivers malware payloads.")
-        self.add_mitigation("Run immediate malware scan")
-        self.add_mitigation("Quarantine the system")
+    @Rule(AND(Threat(threat='Phishing'), Symptom(symptom='Clicked Suspicious Link')))
+    def rule_phishing_link(self):
+        self.add_score('Phishing Attempt', 50)
+        self.add_diagnosis_explanation('Phishing Attempt', "Clicking unknown links may compromise credentials.")
+        self.add_indicator("Suspicious link clicked")
+        self.add_mitigation("Change passwords immediately", "Prevent unauthorized access.")
 
-    @Rule(AND(UserActivity(activity='Credential Leak'), Threat(threat='Phishing')))
-    def phishing_credentials(self):
-        self.add_score('Credential Theft', 80)
-        self.add_score('Account Compromise', 70)
-        self.add_indicator("Potential credential compromise")
-        self.explain("Phishing may have led to credential leakage.")
-        self.add_mitigation("URGENT: Force password reset")
-        self.add_mitigation("Review account activity logs")
-        self.add_mitigation("Enable MFA immediately")
+    @Rule(AND(Threat(threat='Phishing'), Symptom(symptom='Suspicious Attachment')))
+    def rule_phishing_attachment(self):
+        self.add_score('Phishing Attempt', 55)
+        self.add_diagnosis_explanation('Phishing Attempt', "Attachments may contain malware or ransomware.")
+        self.add_indicator("Suspicious attachment opened")
+        self.add_mitigation("Run attachment in sandbox or delete", "Avoid system compromise.")
 
-    @Rule(AND(Threat(threat='Phishing'), TimeContext(time='Urgent Request')))
-    def phishing_urgency(self):
-        self.add_score('Spear Phishing', 35)
-        self.add_score('Business Email Compromise', 40)
-        self.add_indicator("Email contains urgency tactics")
-        self.explain("Urgency and pressure tactics are common phishing techniques.")
+    @Rule(AND(Threat(threat='Phishing'), Symptom(symptom='Threatening Language')))
+    def rule_phishing_threat(self):
+        self.add_score('Phishing Attempt', 45)
+        self.add_diagnosis_explanation('Phishing Attempt', "Urgent or threatening language is typical of phishing.")
+        self.add_indicator("Threatening language in email")
+        self.add_mitigation("Report email to security team", "Enable alerts to prevent compromise.")
 
-    # =====================================================
-    # 3️⃣  ENHANCED NETWORK INTRUSION RULES
-    # =====================================================
+
     @Rule(AND(Threat(threat='Network Intrusion'), Symptom(symptom='Slow Network')))
-    def network_slow(self):
-        self.add_score('Network Intrusion', 40)
-        self.add_score('Network Scanning', 35)
-        self.add_indicator("Network performance degradation")
-        self.explain("Abnormal network latency can indicate scanning or intrusion.")
-        self.add_mitigation("Monitor network traffic patterns")
-        self.add_mitigation("Check firewall logs")
+    def rule_network_slow(self):
+        self.add_score('Network Reconnaissance', 30)
+        self.add_diagnosis_explanation('Network Reconnaissance', "Slow network may indicate scanning or attack traffic.")
+        self.add_indicator("Network slowdown detected")
+        self.add_mitigation("Monitor network traffic", "Identify abnormal patterns.")
 
-    @Rule(AND(Threat(threat='Network Intrusion'), Observation(observation='New Device Connected')))
-    def network_device(self):
-        self.add_score('Unauthorized Access', 65)
-        self.add_score('Rogue Device', 60)
-        self.add_indicator("Unrecognized device on network")
-        self.explain("A new, unrecognized device may signal an intrusion attempt.")
-        self.add_mitigation("Identify and isolate unknown device")
-        self.add_mitigation("Review network access controls")
+    @Rule(AND(Threat(threat='Network Intrusion'), Symptom(symptom='Unauthorized Access')))
+    def rule_network_unauthorized(self):
+        self.add_score('Unauthorized Access', 60)
+        self.add_diagnosis_explanation('Unauthorized Access', "Attempted access to restricted resources detected.")
+        self.add_indicator("Unauthorized access attempts")
+        self.add_mitigation("Block suspicious accounts/IPs", "Prevent further intrusion.")
 
-    @Rule(AND(UserActivity(activity='Accessing Restricted Files'), 
-              Threat(threat='Network Intrusion')))
-    def network_access(self):
-        self.add_score('Insider Threat', 35)
-        self.add_score('Network Breach', 50)
-        self.add_score('Privilege Escalation', 40)
-        self.add_indicator("Unauthorized access to restricted resources")
-        self.explain("Restricted access attempts indicate insider activity or breach.")
-        self.add_mitigation("Review user access privileges")
-        self.add_mitigation("Investigate user activity timeline")
+    @Rule(AND(Threat(threat='Network Intrusion'), Symptom(symptom='Unusual Network Traffic')))
+    def rule_network_traffic(self):
+        self.add_score('Network Reconnaissance', 50)
+        self.add_diagnosis_explanation('Network Reconnaissance', "Unexpected traffic patterns may indicate scanning or malware C2.")
+        self.add_indicator("Unusual outbound/inbound traffic")
+        self.add_mitigation("Enable IDS/IPS", "Detect and block suspicious traffic.")
 
-    @Rule(AND(Threat(threat='Network Intrusion'), 
-              NetworkBehavior(behavior='Port Scanning')))
-    def network_port_scan(self):
-        self.add_score('Network Reconnaissance', 70)
-        self.add_score('Precursor to Attack', 55)
-        self.add_indicator("Port scanning activity detected")
-        self.explain("Port scanning is reconnaissance before a larger attack.")
-        self.add_mitigation("Block scanning source IP")
-        self.add_mitigation("Increase monitoring and alerting")
-
-    @Rule(AND(Threat(threat='Network Intrusion'), 
-              NetworkBehavior(behavior='Lateral Movement')))
-    def network_lateral_movement(self):
-        self.add_score('Advanced Persistent Threat', 85)
-        self.add_score('Network Breach', 75)
-        self.add_indicator("Lateral movement across network")
-        self.explain("Lateral movement indicates established network compromise.")
-        self.add_mitigation("Segment network immediately")
-        self.add_mitigation("Revoke compromised credentials")
-
-    # =====================================================
-    # 4️⃣  ENHANCED DDOS ATTACK RULES
-    # =====================================================
-    @Rule(AND(Threat(threat='DDoS'), Symptom(symptom='Slow Network'), 
-              SystemImpact(impact='Service Downtime')))
-    def ddos_attack(self):
-        self.add_score('DDoS Attack', 95)
-        self.add_indicator("Service unavailability with network saturation")
-        self.explain("Service downtime and high latency definitively point to DDoS attack.")
-        self.add_mitigation("Enable DDoS mitigation service")
-        self.add_mitigation("Contact ISP for traffic filtering")
-        self.add_mitigation("Implement rate limiting")
-
-    @Rule(AND(Threat(threat='DDoS'), Observation(observation='Large Data Transfer')))
-    def ddos_transfer(self):
-        self.add_score('DDoS Attack', 60)
-        self.add_score('Bandwidth Saturation', 55)
-        self.add_indicator("Abnormal traffic volume")
-        self.explain("Unusually high data transfer volume is a DDoS indicator.")
-        self.add_mitigation("Analyze traffic sources")
-        self.add_mitigation("Block malicious IP ranges")
-
-    @Rule(AND(Threat(threat='DDoS'), NetworkBehavior(behavior='SYN Flood')))
-    def ddos_syn_flood(self):
-        self.add_score('DDoS Attack', 85)
-        self.add_indicator("SYN flood attack detected")
-        self.explain("SYN flood is a common DDoS technique targeting network stack.")
-        self.add_mitigation("Enable SYN cookies")
-        self.add_mitigation("Adjust firewall SYN timeout")
-
-    @Rule(AND(Threat(threat='DDoS'), NetworkBehavior(behavior='Application Layer Attack')))
-    def ddos_application_layer(self):
-        self.add_score('Application Layer DDoS', 80)
-        self.add_indicator("Layer 7 attack targeting application")
-        self.explain("Application-layer attacks are harder to detect and mitigate.")
-        self.add_mitigation("Implement web application firewall")
-        self.add_mitigation("Use CAPTCHA challenges")
-
-    # =====================================================
-    # 5️⃣  ENHANCED INSIDER THREAT RULES
-    # =====================================================
-    @Rule(AND(Threat(threat='Insider Threat'), 
-              UserActivity(activity='Multiple Login Attempts')))
-    def insider_login(self):
-        self.add_score('Credential Misuse', 65)
-        self.add_score('Brute Force Attempt', 45)
+    @Rule(AND(Threat(threat='Network Intrusion'), Symptom(symptom='Failed Login Attempts')))
+    def rule_network_failed_login(self):
+        self.add_score('Unauthorized Access', 40)
+        self.add_diagnosis_explanation('Unauthorized Access', "Multiple failed logins suggest brute-force attack.")
         self.add_indicator("Multiple failed login attempts")
-        self.explain("Repeated failed logins from internal users indicate credential misuse.")
-        self.add_mitigation("Lock account temporarily")
-        self.add_mitigation("Require password reset")
-        self.add_mitigation("Review user behavior patterns")
+        self.add_mitigation("Lock affected accounts temporarily", "Prevent further brute-force attempts.")
 
-    @Rule(AND(Threat(threat='Insider Threat'), 
-              Observation(observation='Privilege Escalation')))
-    def insider_privilege(self):
-        self.add_score('Insider Threat', 85)
-        self.add_score('Account Compromise', 50)
-        self.add_indicator("Unauthorized privilege elevation")
-        self.explain("Privilege escalation suggests malicious internal activity.")
-        self.add_mitigation("Revoke elevated privileges immediately")
-        self.add_mitigation("Conduct security investigation")
-        self.add_mitigation("Review access control policies")
+    # -------- DDoS Rules --------
+    @Rule(AND(Threat(threat='DDoS'), Symptom(symptom='High Traffic Volume')))
+    def rule_ddos_high_traffic(self):
+        self.add_score('DDoS Attack', 70)
+        self.add_diagnosis_explanation('DDoS Attack', "Abnormally high traffic may indicate DDoS attack.")
+        self.add_indicator("High traffic volume")
+        self.add_mitigation("Activate DDoS mitigation services", "Reduce load on servers.")
 
-    @Rule(AND(Threat(threat='Insider Threat'), 
-              SystemImpact(impact='Unauthorized Access')))
-    def insider_access(self):
-        self.add_score('Insider Threat', 75)
-        self.add_score('Data Theft', 60)
-        self.add_indicator("Unauthorized system access")
-        self.explain("Unauthorized access from known users implies insider compromise.")
-        self.add_mitigation("Investigate access patterns")
-        self.add_mitigation("Review data access logs")
+    @Rule(AND(Threat(threat='DDoS'), Symptom(symptom='Service Downtime')))
+    def rule_ddos_downtime(self):
+        self.add_score('DDoS Attack', 50)
+        self.add_diagnosis_explanation('DDoS Attack', "Service downtime may indicate a DDoS attack.")
+        self.add_indicator("Service downtime observed")
+        self.add_mitigation("Check server logs and mitigate traffic", "Investigate traffic source.")
 
-    @Rule(AND(Threat(threat='Insider Threat'), 
-              FileActivity(activity='Mass Download')))
-    def insider_data_exfil(self):
-        self.add_score('Data Exfiltration', 90)
-        self.add_score('Insider Threat', 70)
-        self.add_indicator("Mass data download detected")
-        self.explain("Large-scale downloading indicates data theft attempt.")
-        self.add_mitigation("Block data transfer immediately")
-        self.add_mitigation("Preserve audit logs")
-        self.add_mitigation("Initiate incident response")
+    @Rule(AND(Threat(threat='DDoS'), Symptom(symptom='Server Timeout')))
+    def rule_ddos_timeout(self):
+        self.add_score('DDoS Attack', 40)
+        self.add_diagnosis_explanation('DDoS Attack', "Server timeout can indicate high load from attack.")
+        self.add_indicator("Server timeout observed")
+        self.add_mitigation("Activate traffic filtering", "Reduce malicious traffic impact.")
 
-    @Rule(AND(Threat(threat='Insider Threat'), 
-              TimeContext(time='After Hours'),
-              FileActivity(activity='Sensitive Data Access')))
-    def insider_suspicious_timing(self):
+    @Rule(AND(Threat(threat='DDoS'), Symptom(symptom='Connection Failures')))
+    def rule_ddos_connection_failures(self):
+        self.add_score('DDoS Attack', 30)
+        self.add_diagnosis_explanation('DDoS Attack', "Connection failures may indicate network flooding.")
+        self.add_indicator("Connection failures observed")
+        self.add_mitigation("Check firewall rules", "Block suspicious IPs.")
+
+
+    @Rule(AND(Threat(threat='Insider Threat'), Symptom(symptom='Multiple Login Failures')))
+    def rule_insider_login_failures(self):
+        self.add_score('Insider Threat', 40)
+        self.add_diagnosis_explanation('Insider Threat', "Repeated failed logins may indicate malicious insider activity.")
+        self.add_indicator("Multiple login failures")
+        self.add_mitigation("Monitor user accounts", "Investigate suspicious behavior.")
+
+    @Rule(AND(Threat(threat='Insider Threat'), Symptom(symptom='Access to Restricted Files')))
+    def rule_insider_restricted_access(self):
         self.add_score('Insider Threat', 60)
-        self.explain("After-hours access to sensitive data raises suspicion.")
-        self.add_indicator("Off-hours sensitive data access")
-        self.add_mitigation("Verify user authorization")
+        self.add_diagnosis_explanation('Insider Threat', "Accessing restricted files may indicate malicious insider activity.")
+        self.add_indicator("Restricted file access")
+        self.add_mitigation("Alert security team", "Investigate employee actions.")
 
-    # =====================================================
-    # 6️⃣  CORRELATION RULES (Multiple threat indicators)
-    # =====================================================
-    @Rule(AND(NetworkBehavior(behavior='Unusual Outbound Traffic'),
-              FileActivity(activity='Mass Encryption')))
-    def correlation_ransomware_exfil(self):
-        self.add_score('Ransomware', 50)
-        self.add_score('Data Exfiltration', 45)
-        self.explain("Combined encryption and data transfer suggests ransomware with exfiltration.")
-        self.add_indicator("Double extortion ransomware pattern")
+    @Rule(AND(Threat(threat='Insider Threat'), Symptom(symptom='Suspicious Behavior')))
+    def rule_insider_behavior(self):
+        self.add_score('Insider Threat', 50)
+        self.add_diagnosis_explanation('Insider Threat', "Suspicious behavior detected; could be insider threat.")
+        self.add_indicator("Suspicious behavior observed")
+        self.add_mitigation("Monitor and audit activities", "Track suspicious employee actions.")
 
-    @Rule(AND(UserActivity(activity='Multiple Login Attempts'),
-              NetworkBehavior(behavior='Lateral Movement')))
-    def correlation_breach(self):
-        self.add_score('Network Breach', 65)
-        self.add_score('Advanced Persistent Threat', 55)
-        self.explain("Failed logins with lateral movement indicate active breach.")
-        self.add_indicator("Active compromise in progress")
+    @Rule(AND(Threat(threat='Insider Threat'), Symptom(symptom='Unusual Data Downloads')))
+    def rule_insider_data_download(self):
+        self.add_score('Insider Threat', 45)
+        self.add_diagnosis_explanation('Insider Threat', "Unusual data downloads may indicate data exfiltration.")
+        self.add_indicator("Large or unusual downloads")
+        self.add_mitigation("Restrict data access", "Prevent unauthorized data exfiltration.")
 
-    # =====================================================
-    # FINAL DECISION ENGINE
-    # =====================================================
+ 
     @Rule()
-    def decide(self):
+    def finalize_report(self):
         if not self.report['scores']:
-            self.report['best_fit'] = "Insufficient Data - Monitor System"
-            self.report['confidence'] = 0
-            self.report['severity'] = "Unknown"
-            self.explain("No sufficient indicators found. Continue monitoring system.")
-            self.add_mitigation("Increase logging and monitoring")
-            self.add_mitigation("Review security baselines")
-            return
-
-        # Sort scores
-        sorted_scores = sorted(self.report['scores'].items(), 
-                              key=lambda x: x[1], reverse=True)
-        
-        # Determine best fit
-        self.report['best_fit'] = sorted_scores[0][0]
-        best_score = sorted_scores[0][1]
-        
-        # Calculate confidence (0-100%)
-        total_possible = 200  # Rough maximum
-        self.report['confidence'] = min(int((best_score / total_possible) * 100), 99)
-        
-        # Determine severity
-        for severity, threshold in sorted(self.severity_thresholds.items(), 
-                                         key=lambda x: x[1], reverse=True):
-            if best_score >= threshold:
-                self.report['severity'] = severity
-                break
+            self.report.update({
+                "best_fit": "Insufficient Data",
+                "confidence": 0,
+                "severity": "Unknown"
+            })
+            self.explain("No conclusive indicators found. Continue monitoring.")
+            self.add_mitigation("Increase logging depth", "Collect detailed telemetry for correlation.")
         else:
-            self.report['severity'] = "Low"
-        
-        # Add alternatives
-        self.report['alternatives'] = [d for d, s in sorted_scores[1:4]]
-        
-        self.explain(f"Best-fit diagnosis: {self.report['best_fit']} "
-                    f"(Confidence: {self.report['confidence']}%, "
-                    f"Severity: {self.report['severity']})")
+            sorted_scores = sorted(self.report['scores'].items(), key=lambda x: x[1], reverse=True)
+            best_fit, best_score = sorted_scores[0]
+            total_score = sum(score for _, score in sorted_scores)
+            self.report['best_fit'] = best_fit
+            self.report['alternatives'] = [d for d, _ in sorted_scores[1:4]]
+            self.report['confidence'] = min(int((best_score / total_score) * 100), 99)
+
+            for level, threshold in self.severity_thresholds.items():
+                if best_score >= threshold:
+                    self.report['severity'] = level
+                    break
+
+            self.explain(f"✅ Final Assessment: {best_fit} "
+                         f"(Confidence: {self.report['confidence']}%, Severity: {self.report['severity']}).")
+
+        self.report["summary_text"] = self._generate_summary()
+
+ 
+    def _generate_summary(self):
+        best = self.report.get('best_fit')
+        diag_reasons = self.report.get('diagnosis_explanations', {})
+        best_reasons = diag_reasons.get(best, [])
+        alt_text = "\n".join([f"• {a}" for a in self.report['alternatives']]) or "None"
+
+        return f"""
+🧠 **Cyber Threat Analysis Summary**
+-----------------------------------
+**Detected Threat:** {best}
+**Severity:** {self.report['severity']}
+**Confidence:** {self.report['confidence']}%
+
+**Indicators:** {', '.join(self.report['indicators']) or 'None'}
+**Alternative Possibilities:** {alt_text}
+
+🕒 Generated: {self.report['timestamp']}
+"""
