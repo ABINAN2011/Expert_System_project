@@ -5,108 +5,87 @@ from engine import (
     ThreatDetectionEngine, Threat, Symptom, Observation,
     SystemImpact, UserActivity, TimeContext
 )
+from llm import generate_threat_summary
 
-# --------------------------
-# Page Setup
-# --------------------------
-st.set_page_config(page_title="🛡️ Cyber Threat Expert", layout="wide")
-st.title("🛡️ Cyber Threat Detection Expert System")
-st.caption("A smart rule-based cybersecurity analysis assistant")
 
+
+st.set_page_config(page_title=" Cyber Threat Expert", layout="wide")
+st.title(" Cyber Threat Detection Expert System")
 st.markdown("---")
 
-# --------------------------
-# 1️⃣ Threat Category
-# --------------------------
+
+
 st.subheader("1️⃣ Select Threat Category")
 threat_type = st.selectbox(
-    "Threat Type",
-    ["Malware", "Phishing", "Network Intrusion", "DDoS", "Insider Threat"],
-    index=0
+    "Select the type of cybersecurity threat:",
+    ["Malware", "Phishing", "Network Intrusion", "DDoS", "Insider Threat", "Other"]
 )
-
 st.markdown("---")
 
-# --------------------------
-# 2️⃣ Observed Symptoms
-# --------------------------
+
+
 st.subheader("2️⃣ Observed Symptoms")
-symptoms = []
 threat_symptoms = {
     "Malware": ["Unusual CPU Usage", "Unexpected Popups", "System Slowdown", "Unauthorized File Changes", "Antivirus Disabled"],
     "Phishing": ["Suspicious Email", "Clicked Suspicious Link", "Suspicious Attachment", "Threatening Language"],
     "Network Intrusion": ["Slow Network", "Unauthorized Access", "Unusual Network Traffic", "Failed Login Attempts"],
     "DDoS": ["Service Downtime", "High Traffic Volume", "Server Timeout", "Connection Failures"],
-    "Insider Threat": ["Multiple Login Failures", "Access to Restricted Files", "Suspicious Behavior", "Unusual Data Downloads"]
+    "Insider Threat": ["Multiple Login Failures", "Access to Restricted Files", "Suspicious Behavior", "Unusual Data Downloads"],
+    "Other": []
 }
+
+symptoms = []
 cols = st.columns(2)
 for i, s in enumerate(threat_symptoms[threat_type]):
     if cols[i % 2].checkbox(s):
         symptoms.append(s)
 
+if threat_type == "Other":
+    custom_symptom = st.text_area("Enter custom symptoms (comma-separated):")
+    if custom_symptom:
+        symptoms.extend([s.strip() for s in custom_symptom.split(",") if s.strip()])
 st.markdown("---")
 
-# --------------------------
-# 3️⃣ Additional Observations
-# --------------------------
+
+
 st.subheader("3️⃣ Additional Observations")
+obs_opts = ["Privilege Escalation Detected", "New Device Connected", "File Modifications Observed", "Unusual Outbound Traffic"]
 observations = []
-obs_opts = [
-    "Privilege Escalation Detected",
-    "New Device Connected",
-    "File Modifications Observed",
-    "Unusual Outbound Traffic"
-]
-obs_cols = st.columns(2)
+cols = st.columns(2)
 for i, o in enumerate(obs_opts):
-    if obs_cols[i % 2].checkbox(o):
+    if cols[i % 2].checkbox(o):
         observations.append(o)
-
+custom_obs = st.text_area("Other observations:")
+if custom_obs:
+    observations.append(custom_obs.strip())
 st.markdown("---")
 
-# --------------------------
-# 4️⃣ System Impact & User Activity
-# --------------------------
+
+
 st.subheader("4️⃣ System Impact & User Activity")
 col1, col2 = st.columns(2)
 with col1:
-    selected_impact = st.selectbox(
-        "System Impact",
-        ["None", "System Crash", "Data Loss", "Service Downtime", "Credential Leak", "Unauthorized Access"]
-    )
+    selected_impact = st.selectbox("System Impact", ["None", "System Crash", "Data Loss", "Service Downtime", "Credential Leak", "Unauthorized Access"])
 with col2:
-    time_context = st.selectbox(
-        "Time Context",
-        ["Business Hours", "After Hours", "Weekend", "Holiday"]
-    )
+    time_context = st.selectbox("Time Context", ["Business Hours", "After Hours", "Weekend", "Holiday"])
 
-st.caption("👤 User Activity Indicators")
 user_activities = []
-act_cols = st.columns(3)
-act_opts = [
-    "Suspicious Login Detected",
-    "Accessed Restricted Files",
-    "Frequent File Downloads"
-]
-for i, a in enumerate(act_opts):
-    if act_cols[i % 3].checkbox(a):
+cols = st.columns(3)
+acts = ["Suspicious Login Detected", "Accessed Restricted Files", "Frequent File Downloads"]
+for i, a in enumerate(acts):
+    if cols[i % 3].checkbox(a):
         user_activities.append(a)
-
+custom_act = st.text_input("Other suspicious activities:")
+if custom_act:
+    user_activities.append(custom_act.strip())
 st.markdown("---")
 
-# --------------------------
-# 5️⃣ Run Diagnosis Button
-# --------------------------
-analyze_button = st.button("🚀 Run Threat Diagnosis", use_container_width=True)
 
-# --------------------------
-# RUN ENGINE & DISPLAY RESULTS
-# --------------------------
-if analyze_button:
-    with st.spinner("🔍 Analyzing... please wait"):
+st.subheader("5️⃣ Run Diagnosis")
+if st.button("🚀 Run Threat Diagnosis", use_container_width=True):
+    with st.spinner("Analyzing..."):
         engine = ThreatDetectionEngine()
         engine.reset()
-
         engine.declare(Threat(threat=threat_type))
         for s in symptoms:
             engine.declare(Symptom(symptom=s))
@@ -117,52 +96,51 @@ if analyze_button:
         for u in user_activities:
             engine.declare(UserActivity(activity=u))
         engine.declare(TimeContext(time=time_context))
-
         engine.run()
         report = engine.report
 
-    # --------------------------
-    # RESULTS
-    # --------------------------
     st.success("✅ Analysis Complete")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Threat", report['best_fit'])
+    c2.metric("Severity", report['severity'])
+    c3.metric("Confidence", f"{report['confidence']}%")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Threat", report['best_fit'])
-    col2.metric("Severity", report['severity'])
-    col3.metric("Confidence", f"{report['confidence']}%")
+    st.subheader("🛠️ Recommended Mitigation Steps")
+    if report.get('mitigation_steps'):
+        for step in report['mitigation_steps']:
+            st.write(f"- {step}")
+    else:
+        st.caption("No mitigation steps suggested.")
 
-    severity_msg = {
-        "Critical": "🚨 Immediate Action Required",
-        "High": "⚠️ High Severity - Respond Quickly",
-        "Medium": "ℹ️ Moderate Risk - Investigate",
-        "Low": "🟢 Low Risk - Monitor"
-    }
-    st.info(severity_msg.get(report['severity'], "Unknown Severity"))
+    st.subheader("🧩 Reasoning Summary")
+    if report.get('explanations'):
+        for e in report['explanations']:
+            st.write(f"- {e}")
+    else:
+        st.caption("No reasoning steps recorded.")
 
-    if report.get('alternatives'):
-        with st.expander("🔄 Alternative Possibilities"):
-            for alt in report['alternatives']:
-                st.write(f"• {alt}")
+    st.subheader("🧠 Alternative Threat Possibilities")
+    if report['alternatives']:
+        for alt in report['alternatives']:
+            st.write(f"• {alt}")
+    else:
+        st.caption("No alternatives found.")
 
-    with st.expander("🛠️ Recommended Mitigation Steps", expanded=True):
-        for i, step in enumerate(report['mitigation_steps'], 1):
-            st.write(f"{i}. {step}")
+    
+    st.markdown("---")
+    st.subheader("🤖 AI-Powered Threat Summary")
+    try:
+        summary = generate_threat_summary(report)
+        st.success("LLM Analysis Complete")
+        st.write(summary)
+    except Exception as e:
+        st.error(f"LLM Error: {str(e)}")
+        st.info("Ensure your GROQ_API_KEY is set.")
 
-    if report.get('scores'):
-        with st.expander("📊 Confidence Scores"):
-            for threat, score in report['scores'].items():
-                percent = min(int((score / 200) * 100), 100)
-                st.progress(percent / 100)
-                st.caption(f"{threat}: {percent}%")
-
-    # Export option
-    report_json = json.dumps(report, indent=2)
     st.download_button(
-        "📥 Download Report (JSON)",
-        report_json,
-        file_name=f"threat_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-        use_container_width=True
+        "📥 Download Threat Report (JSON)",
+        json.dumps(report, indent=2),
+        file_name=f"threat_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     )
-
 else:
-    st.info("🧭 Select threat details and click **Run Threat Diagnosis** to begin.")
+    st.info("🧭 Fill the details and click **Run Threat Diagnosis** to start.")
